@@ -1,0 +1,138 @@
+    clc; clear; close all;
+    
+    % Number of 2D scan layers (reduce for better performance)
+    num_layers = 12;
+    
+    % Define the radius of the scanning distance
+    scan_radius = 1.5;
+    
+    % Define number of scan points per layer (GRID BASED)
+    grid_size = 10;  % 10x10 grid for a balanced scan
+    
+    % Define cube vertices and faces (Shifted to position (0.8, 0.8, 0.8))
+    x = [-0.5 0.5 0.5 -0.5 -0.5 0.5 0.5 -0.5] + 0.8;
+    y = [-0.5 -0.5 0.5 0.5 -0.5 -0.5 0.5 0.5] + 0.8;
+    z = [-0.5 -0.5 -0.5 -0.5 0.5 0.5 0.5 0.5] + 0.8;
+    faces = [1 2 3 4; 5 6 7 8; 1 5 6 2; 2 6 7 3; 3 7 8 4; 4 8 5 1];
+    
+    % Define cube boundaries
+    x_min = min(x); x_max = max(x);
+    y_min = min(y); y_max = max(y);
+    z_min = min(z); z_max = max(z);
+    
+    % Initialize figure
+    figure;
+    hold on;
+    
+    % Plot the cube
+    patch('Vertices', [x' y' z'], 'Faces', faces, ...
+        'FaceColor', [0.8, 0.8, 0.8], ...
+        'EdgeColor', 'k', ...
+        'FaceAlpha', 0.7);
+    
+    % Define grid for scanning layers (GRID SCAN PATTERN)
+    [x_scan, y_scan] = meshgrid(linspace(-scan_radius, scan_radius, grid_size), ...
+                                linspace(-scan_radius, scan_radius, grid_size));
+    
+    % Matrix to store detected points and distances
+    detected_points = [];
+    distances = [];
+    lidar_positions = [];
+    
+    % Simulate LIDAR scanning layers (GRID-BASED)
+    for layer = 1:num_layers
+        z_layer = (layer - 1) / (num_layers - 1);  % Vary along Z-axis from 0 to 1
+    
+        % Iterate over grid points
+        for i = 1:grid_size
+            for j = 1:grid_size
+                % Ray origin at (0, 0, z_layer) emitting straight out
+                ray_origin = [0, 0, z_layer];
+                ray_dir = [x_scan(i, j), y_scan(i, j), 0] - ray_origin;
+                ray_dir = ray_dir / norm(ray_dir);  % Normalize ray direction
+    
+                % Check ray intersections with cube
+                [valid_hit, intersection_point, dist] = intersect_ray_with_cube(ray_origin, ray_dir, x_min, x_max, y_min, y_max, z_min, z_max);
+    
+                % If hit, store the reflection points
+                if valid_hit
+                    detected_points = [detected_points; intersection_point];
+                    distances = [distances; dist];
+                    lidar_positions = [lidar_positions; ray_origin];  % Store LIDAR origin
+                end
+            end
+        end
+    
+        % Plot gradient circular scan area for visualization
+        fill3(x_scan(:), y_scan(:), z_layer * ones(size(x_scan(:))), ...
+              [1, 0.7, 0.7] - 0.03 * layer, 'FaceAlpha', 0.05);
+    end
+    
+    % --- Commented out this part to remove the blue dots ---
+    % Plot the detected reflection points as blue dots
+    % if ~isempty(detected_points)
+    %     plot3(detected_points(:, 1), detected_points(:, 2), detected_points(:, 3), '.b', 'MarkerSize', 8);
+    % end
+    
+    % Set axis properties
+    xlabel('X-axis');
+    ylabel('Y-axis');
+    zlabel('Z-axis');
+    title('LIDAR Simulation with Detected Points and Distance Calculation');
+    axis equal;
+    grid on;
+    view(30, 30);
+    hold off;
+    
+    % Display detected points and distances with origin info
+    if ~isempty(detected_points)
+        fprintf('\n--- Detected Points and Distances ---\n');
+        for k = 1:size(detected_points, 1)
+            fprintf('Distance from LIDAR at (%.2f, %.2f, %.2f) to detected point (%.2f, %.2f, %.2f) is %.4f\n', ...
+                lidar_positions(k, 1), lidar_positions(k, 2), lidar_positions(k, 3), ...
+                detected_points(k, 1), detected_points(k, 2), detected_points(k, 3), ...
+                distances(k));
+        end
+    else
+        disp('No points detected.');
+    end
+    
+    % ----------------------
+    % Ray-Cube Intersection Function
+    % ----------------------
+    function [valid_hit, intersection_point, t_min] = intersect_ray_with_cube(ray_origin, ray_dir, x_min, x_max, y_min, y_max, z_min, z_max)
+        valid_hit = false;
+        t_min = inf;
+        intersection_point = [];
+    
+        % Define cube boundaries along x, y, z
+        bounds = [x_min, x_max; y_min, y_max; z_min, z_max];
+    
+        for i = 1:3  % Loop over x, y, z axes
+            if ray_dir(i) ~= 0
+                % t1 and t2 are intersection points along the current axis
+                t1 = (bounds(i, 1) - ray_origin(i)) / ray_dir(i);
+                t2 = (bounds(i, 2) - ray_origin(i)) / ray_dir(i);
+    
+                % Swap t1 and t2 if necessary
+                if t1 > t2
+                    temp = t1;
+                    t1 = t2;
+                    t2 = temp;
+                end
+    
+                % Check if intersection is valid
+                if t1 < t_min && t1 > 0
+                    hit_point = ray_origin + t1 * ray_dir;
+                    if hit_point(1) >= x_min && hit_point(1) <= x_max && ...
+                       hit_point(2) >= y_min && hit_point(2) <= y_max && ...
+                       hit_point(3) >= z_min && hit_point(3) <= z_max
+                        valid_hit = true;
+                        t_min = t1;
+                        intersection_point = hit_point;
+                    end
+                end
+            end
+        end
+    end
+
