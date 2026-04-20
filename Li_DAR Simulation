@@ -1,0 +1,89 @@
+clc; clear; close all;
+
+
+num_layers = 10;
+
+
+scan_radius = 1.5;
+
+
+num_points = 100;
+
+% Define cube vertices and faces
+x = [-0.5 0.5 0.5 -0.5 -0.5 0.5 0.5 -0.5] + 0.8;  
+y = [-0.5 -0.5 0.5 0.5 -0.5 -0.5 0.5 0.5] + 0.8;
+z = [-0.5 -0.5 -0.5 -0.5 0.5 0.5 0.5 0.5] + 0.8;
+faces = [1 2 3 4; 5 6 7 8; 1 5 6 2; 2 6 7 3; 3 7 8 4; 4 8 5 1];
+
+
+figure;
+hold on;
+
+
+patch('Vertices', [x' y' z'], 'Faces', faces, ...
+    'FaceColor', [0.8, 0.8, 0.8], ...
+    'EdgeColor', 'k', ...
+    'FaceAlpha', 0.7);
+
+% LIDAR scan cylinder gradient visualization
+theta = linspace(0, 2*pi, num_points);
+z_vals = linspace(0, 1, num_layers);
+
+
+detected_points = [];
+distances = [];
+lidar_positions = [];
+
+
+for layer = 1:num_layers
+    z_layer = z_vals(layer);
+    x_scan = scan_radius * cos(theta);
+    y_scan = scan_radius * sin(theta);
+
+    % Plot gradient circular scan area for each layer
+    fill3(x_scan, y_scan, z_layer * ones(size(x_scan)), ...
+          [1, 0.5, 0.5] - 0.05 * layer, 'FaceAlpha', 0.2);
+
+    
+    for j = 1:length(x_scan)
+       
+        if x_scan(j) >= 0.8 && x_scan(j) <= 1.3 && y_scan(j) >= 0.8 && y_scan(j) <= 1.3
+            reflected_point = [x_scan(j), y_scan(j), z_layer];
+            detected_points = [detected_points; reflected_point];
+
+            
+            dist = sqrt(sum(reflected_point.^2));
+            distances = [distances; dist];
+            
+            % Store LIDAR origin for reporting
+            lidar_positions = [lidar_positions; 0, 0, z_layer];
+
+            % Plot blue reflection points
+            plot3(reflected_point(1), reflected_point(2), reflected_point(3), '.b', 'MarkerSize', 12);
+        end
+    end
+end
+
+% Set axis properties
+xlabel('X-axis');
+ylabel('Y-axis');
+zlabel('Z-axis');
+title('LIDAR Simulation with Detected Points and Distance Calculation');
+axis equal;
+grid on;
+view(30, 30);
+hold off;
+
+% Display detected points and distances with LIDAR origin info
+if ~isempty(detected_points)
+    fprintf('\n--- Detected Points and Distances ---\n');
+    for k = 1:size(detected_points, 1)
+        fprintf('Distance from LIDAR at (%.2f, %.2f, %.2f) to detected point (%.2f, %.2f, %.2f) is %.4f\n', ...
+            lidar_positions(k, 1), lidar_positions(k, 2), lidar_positions(k, 3), ...
+            detected_points(k, 1), detected_points(k, 2), detected_points(k, 3), ...
+            distances(k));
+    end
+else
+    disp('No points detected.');
+end
+
